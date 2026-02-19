@@ -7,6 +7,8 @@ const client = new Client({
   ],
 });
 
+const wins = {}; // banco simples na memória
+
 client.once("ready", async () => {
   console.log(`Logado como ${client.user.tag}`);
 
@@ -23,7 +25,12 @@ client.once("ready", async () => {
     ],
   });
 
-  console.log("Comando /win registrado!");
+  await client.application.commands.create({
+    name: "rank",
+    description: "Ver ranking de vitórias",
+  });
+
+  console.log("Comandos registrados!");
 });
 
 client.on("interactionCreate", async interaction => {
@@ -31,7 +38,27 @@ client.on("interactionCreate", async interaction => {
 
   if (interaction.commandName === "win") {
     const user = interaction.options.getUser("usuario");
-    await interaction.reply(`${user} ganhou uma vitória! 🏆`);
+
+    if (!wins[user.id]) {
+      wins[user.id] = 0;
+    }
+
+    wins[user.id] += 1;
+
+    await interaction.reply(`${user} agora tem ${wins[user.id]} vitória(s)! 🏆`);
+  }
+
+  if (interaction.commandName === "rank") {
+    if (Object.keys(wins).length === 0) {
+      return interaction.reply("Ninguém tem vitórias ainda.");
+    }
+
+    const ranking = Object.entries(wins)
+      .sort((a, b) => b[1] - a[1])
+      .map((user, index) => `${index + 1}º - <@${user[0]}>: ${user[1]} vitória(s)`)
+      .join("\n");
+
+    await interaction.reply(`🏆 **Ranking:**\n${ranking}`);
   }
 });
 
