@@ -1,45 +1,38 @@
-const { Client, GatewayIntentBits, SlashCommandBuilder, Routes } = require('discord.js');
-const { REST } = require('@discordjs/rest');
-
-const token = process.env.TOKEN;
-const clientId = process.env.CLIENT_ID;
-const guildId = process.env.GUILD_ID;
+const { Client, GatewayIntentBits, ApplicationCommandOptionType } = require("discord.js");
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers
+  ],
 });
 
-const commands = [
-  new SlashCommandBuilder()
-    .setName('win')
-    .setDescription('Marca uma vitória para um usuário')
-    .addUserOption(option =>
-      option.setName('usuario')
-        .setDescription('Usuário que ganhou')
-        .setRequired(true))
-].map(command => command.toJSON());
+client.once("ready", async () => {
+  console.log(`Logado como ${client.user.tag}`);
 
-const rest = new REST({ version: '10' }).setToken(token);
+  await client.application.commands.create({
+    name: "win",
+    description: "Dar uma vitória para alguém",
+    options: [
+      {
+        name: "usuario",
+        description: "Selecione o usuário",
+        type: ApplicationCommandOptionType.User,
+        required: true,
+      },
+    ],
+  });
 
-(async () => {
-  try {
-    await rest.put(
-      Routes.applicationGuildCommands(clientId, guildId),
-      { body: commands },
-    );
-    console.log('Comando registrado.');
-  } catch (error) {
-    console.error(error);
-  }
-})();
+  console.log("Comando /win registrado!");
+});
 
-client.on('interactionCreate', async interaction => {
+client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
-  if (interaction.commandName === 'win') {
-    const user = interaction.options.getUser('usuario');
+  if (interaction.commandName === "win") {
+    const user = interaction.options.getUser("usuario");
     await interaction.reply(`${user} ganhou uma vitória! 🏆`);
   }
 });
 
-client.login(token);
+client.login(process.env.TOKEN);
