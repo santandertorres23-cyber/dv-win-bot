@@ -81,6 +81,40 @@ client.on("interactionCreate", async interaction => {
   }
 
   if (interaction.isButton()) {
+  if (interaction.customId === "confirmar") {
+
+    const vencedorId = duelos[interaction.user.id];
+
+    // 🔒 Verifica se existe duelo pendente
+    if (!vencedorId) {
+      return interaction.reply({ 
+        content: "Você não tem nenhum duelo pendente.", 
+        ephemeral: true 
+      });
+    }
+
+    // 🔒 Só o usuário marcado pode confirmar
+    if (!duelos[interaction.user.id]) {
+      return interaction.reply({ 
+        content: "Você não pode confirmar esse duelo.", 
+        ephemeral: true 
+      });
+    }
+
+    if (!wins[vencedorId]) {
+      wins[vencedorId] = 0;
+    }
+
+    wins[vencedorId] += 1;
+
+    delete duelos[interaction.user.id];
+
+    await interaction.update({
+      content: `🏆 <@${vencedorId}> ganhou a vitória confirmada!`,
+      components: []
+    });
+  }
+}
     if (interaction.customId === "confirmar") {
 
       const vencedorId = duelos[interaction.user.id];
