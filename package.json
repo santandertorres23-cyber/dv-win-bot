@@ -1,0 +1,12 @@
+{
+  "name": "dv-win-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.0.0",
+    "@discordjs/rest": "^1.0.0"
+  }
+}
