@@ -70,5 +70,3 @@ module.exports = (client) => {
         sendLog(ban.guild, embed);
     });
 
-};require('./events/logs')(client);
-
