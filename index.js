@@ -1,6 +1,6 @@
-const { 
-  Client, 
-  GatewayIntentBits, 
+const {
+  Client,
+  GatewayIntentBits,
   ApplicationCommandOptionType,
   ActionRowBuilder,
   ButtonBuilder,
@@ -26,7 +26,7 @@ client.once("ready", async () => {
     options: [
       {
         name: "usuario",
-        description: "Quem perdeu?",
+        description: "Quem você quer desafiar?",
         type: ApplicationCommandOptionType.User,
         required: true,
       },
@@ -42,27 +42,34 @@ client.once("ready", async () => {
 });
 
 client.on("interactionCreate", async interaction => {
+
+  // COMANDO
   if (interaction.isChatInputCommand()) {
 
     if (interaction.commandName === "duelo") {
+
       const alvo = interaction.options.getUser("usuario");
 
       if (alvo.id === interaction.user.id) {
         return interaction.reply("Você não pode duelar contra si mesmo.");
       }
 
-      duelos[alvo.id] = interaction.user.id;
+      duelos[interaction.id] = {
+        desafiante: interaction.user.id,
+        desafiado: alvo.id,
+        aceito: false
+      };
 
-      const botao = new ActionRowBuilder().addComponents(
+      const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId("confirmar")
-          .setLabel("Confirmar derrota")
-          .setStyle(ButtonStyle.Success)
+          .setCustomId(`aceitar_${interaction.id}`)
+          .setLabel("Aceitar Duelo")
+          .setStyle(ButtonStyle.Primary)
       );
 
       await interaction.reply({
-        content: `${alvo}, você confirma que perdeu para ${interaction.user}?`,
-        components: [botao]
+        content: `${alvo}, você aceita o duelo contra ${interaction.user}?`,
+        components: [row]
       });
     }
 
@@ -73,65 +80,66 @@ client.on("interactionCreate", async interaction => {
 
       const ranking = Object.entries(wins)
         .sort((a, b) => b[1] - a[1])
-        .map((user, index) => `${index + 1}º - <@${user[0]}>: ${user[1]} vitória(s)`)
+        .map((u, i) => `${i + 1}º - <@${u[0]}>: ${u[1]} vitória(s)`)
         .join("\n");
 
-      await interaction.reply(`🏆 **Ranking:**\n${ranking}`);
+      await interaction.reply(`🏆 Ranking:\n${ranking}`);
     }
   }
 
+  // BOTÕES
   if (interaction.isButton()) {
-  if (interaction.customId === "confirmar") {
 
-    const vencedorId = duelos[interaction.user.id];
+    const [acao, id] = interaction.customId.split("_");
+    const duelo = duelos[id];
 
-    // 🔒 Verifica se existe duelo pendente
-    if (!vencedorId) {
-      return interaction.reply({ 
-        content: "Você não tem nenhum duelo pendente.", 
-        ephemeral: true 
+    if (!duelo) {
+      return interaction.reply({ content: "Duelo não encontrado.", ephemeral: true });
+    }
+
+    // ACEITAR DUELO
+    if (acao === "aceitar") {
+
+      if (interaction.user.id !== duelo.desafiado) {
+        return interaction.reply({ content: "Só o desafiado pode aceitar.", ephemeral: true });
+      }
+
+      duelo.aceito = true;
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`confirmar_${id}`)
+          .setLabel("Confirmar Vitória")
+          .setStyle(ButtonStyle.Success)
+      );
+
+      return interaction.update({
+        content: `Duelo aceito! Após a partida, confirme o vencedor.`,
+        components: [row]
       });
     }
 
-    // 🔒 Só o usuário marcado pode confirmar
-    if (!duelos[interaction.user.id]) {
-      return interaction.reply({ 
-        content: "Você não pode confirmar esse duelo.", 
-        ephemeral: true 
-      });
-    }
+    // CONFIRMAR VITÓRIA
+    if (acao === "confirmar") {
 
-    if (!wins[vencedorId]) {
-      wins[vencedorId] = 0;
-    }
-
-    wins[vencedorId] += 1;
-
-    delete duelos[interaction.user.id];
-
-    await interaction.update({
-      content: `🏆 <@${vencedorId}> ganhou a vitória confirmada!`,
-      components: []
-    });
-  }
-}
-    if (interaction.customId === "confirmar") {
-
-      const vencedorId = duelos[interaction.user.id];
-
-      if (!vencedorId) {
-        return interaction.reply({ content: "Nenhum duelo pendente.", ephemeral: true });
+      if (!duelo.aceito) {
+        return interaction.reply({ content: "O duelo ainda não foi aceito.", ephemeral: true });
       }
 
-      if (!wins[vencedorId]) {
-        wins[vencedorId] = 0;
+      if (interaction.user.id !== duelo.desafiado) {
+        return interaction.reply({ content: "Só o perdedor pode confirmar a vitória.", ephemeral: true });
       }
 
-      wins[vencedorId] += 1;
-      delete duelos[interaction.user.id];
+      if (!wins[duelo.desafiante]) {
+        wins[duelo.desafiante] = 0;
+      }
 
-      await interaction.update({
-        content: `🏆 <@${vencedorId}> ganhou a vitória!`,
+      wins[duelo.desafiante] += 1;
+
+      delete duelos[id];
+
+      return interaction.update({
+        content: `🏆 <@${duelo.desafiante}> ganhou a vitória confirmada!`,
         components: []
       });
     }
