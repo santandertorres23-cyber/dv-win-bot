@@ -147,8 +147,18 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-setInterval(() => {}, 1000);
+
+const express = require("express");
+const app = express();
+
+app.get("/", (req, res) => {
+  res.send("Bot online");
+});
+
+
+  console.log("Servidor web ativo");
+});
 
 client.login(process.env.TOKEN);
 
-setInterval(() => {}, 1000);
+
