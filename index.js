@@ -1,115 +1,73 @@
-const {
-  Client,
-  GatewayIntentBits,
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle
-} = require("discord.js");
+const { EmbedBuilder, Events } = require('discord.js');
 
-const express = require("express");
+module.exports = (client) => {
 
-// ===== EXPRESS (OBRIGATÓRIO PARA RAILWAY) =====
-const app = express();
+    const LOG_CHANNEL_ID = "ID_DO_CANAL_DE_LOG";
 
-app.get("/", (req, res) => {
-  res.send("Bot online");
-});
-
-const PORT = process.env.PORT;
-
-app.listen(PORT, () => {
-  console.log("Servidor web ativo na porta " + PORT);
-});
-
-// ===== DISCORD CLIENT =====
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
-});
-
-// ===== BANCO SIMPLES EM MEMÓRIA =====
-const duelos = {};
-const wins = {};
-
-// ===== BOT ONLINE =====
-client.once("ready", () => {
-  console.log(`Bot online como ${client.user.tag}`);
-});
-
-// ===== COMANDO PAINEL =====
-client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
-
-  if (message.content === "!painel") {
-
-    const embed = new EmbedBuilder()
-      .setTitle("⚔️ Sistema de Duelo")
-      .setDescription("Clique para iniciar um duelo!")
-      .setImage("COLE_AQUI_O_LINK_DO_SEU_BANNER")
-      .setColor("Red");
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("iniciar_duelo")
-        .setLabel("Iniciar Duelo")
-        .setStyle(ButtonStyle.Danger)
-    );
-
-    await message.channel.send({
-      embeds: [embed],
-      components: [row]
-    });
-  }
-});
-
-// ===== BOTÕES =====
-client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isButton()) return;
-
-  // INICIAR DUELO
-  if (interaction.customId === "iniciar_duelo") {
-
-    duelos[interaction.user.id] = true;
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("vitoria")
-        .setLabel("Confirmar Vitória")
-        .setStyle(ButtonStyle.Success)
-    );
-
-    await interaction.reply({
-      content: "Duelo iniciado! Clique abaixo quando vencer.",
-      components: [row]
-    });
-  }
-
-  // CONFIRMAR VITÓRIA
-  if (interaction.customId === "vitoria") {
-
-    if (!duelos[interaction.user.id]) {
-      return interaction.reply({
-        content: "Você não iniciou um duelo!",
-        ephemeral: true
-      });
+    function sendLog(guild, embed) {
+        const channel = guild.channels.cache.get(LOG_CHANNEL_ID);
+        if (!channel) return;
+        channel.send({ embeds: [embed] });
     }
 
-    if (!wins[interaction.user.id]) {
-      wins[interaction.user.id] = 0;
-    }
+    // 📥 Entrada
+    client.on(Events.GuildMemberAdd, member => {
+        const embed = new EmbedBuilder()
+            .setTitle('📥 Membro entrou')
+            .setColor('Green')
+            .addFields(
+                { name: 'Usuário', value: `${member.user.tag}` },
+                { name: 'ID', value: member.id },
+                { name: 'Conta criada', value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>` }
+            )
+            .setTimestamp();
 
-    wins[interaction.user.id] += 1;
-
-    delete duelos[interaction.user.id];
-
-    await interaction.reply({
-      content: `🏆 Vitória confirmada!\nTotal de wins: ${wins[interaction.user.id]}`
+        sendLog(member.guild, embed);
     });
-  }
-});
 
-client.login(process.env.TOKEN);
+    // 📤 Saída
+    client.on(Events.GuildMemberRemove, member => {
+        const embed = new EmbedBuilder()
+            .setTitle('📤 Membro saiu')
+            .setColor('Orange')
+            .addFields(
+                { name: 'Usuário', value: `${member.user.tag}` },
+                { name: 'ID', value: member.id }
+            )
+            .setTimestamp();
+
+        sendLog(member.guild, embed);
+    });
+
+    // 🗑️ Mensagem apagada
+    client.on(Events.MessageDelete, message => {
+        if (!message.guild || message.author?.bot) return;
+
+        const embed = new EmbedBuilder()
+            .setTitle('🗑️ Mensagem apagada')
+            .setColor('Red')
+            .addFields(
+                { name: 'Usuário', value: `${message.author.tag}` },
+                { name: 'Canal', value: `${message.channel}` },
+                { name: 'Conteúdo', value: message.content || 'Sem texto' }
+            )
+            .setTimestamp();
+
+        sendLog(message.guild, embed);
+    });
+
+    // 🔨 Ban
+    client.on(Events.GuildBanAdd, ban => {
+        const embed = new EmbedBuilder()
+            .setTitle('🔨 Usuário banido')
+            .setColor('DarkRed')
+            .addFields(
+                { name: 'Usuário', value: `${ban.user.tag}` },
+                { name: 'ID', value: ban.user.id }
+            )
+            .setTimestamp();
+
+        sendLog(ban.guild, embed);
+    });
+
+};
