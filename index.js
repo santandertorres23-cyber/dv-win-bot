@@ -149,4 +149,6 @@ client.on("messageCreate", async (message) => {
 
 setInterval(() => {}, 1000);
 
-client.login(TOKEN);
+client.login(process.env.TOKEN);
+
+setInterval(() => {}, 1000);
