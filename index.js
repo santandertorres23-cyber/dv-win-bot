@@ -1,166 +1,112 @@
 const {
   Client,
   GatewayIntentBits,
-  Partials,
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle
 } = require("discord.js");
 
-const fs = require("fs");
+const express = require("express");
 
+// ===== EXPRESS (Railway) =====
+const app = express();
+app.get("/", (req, res) => {
+  res.send("Bot online");
+});
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Servidor web ativo");
+});
+
+// ===== DISCORD CLIENT =====
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent
-  ],
-  partials: [Partials.Channel]
+  ]
 });
 
-const TOKEN = process.env.TOKEN;
+// ===== BANCO SIMPLES EM MEMÓRIA =====
+const duelos = {};
+const wins = {};
 
-const BANNER_URL = "COLE_AQUI_O_LINK_DA_IMAGEM";
-
-if (!fs.existsSync("./wins.json")) {
-  fs.writeFileSync("./wins.json", JSON.stringify({}));
-}
-
-let duelos = {};
-
-const cargosWins = [
-  { wins: 5, nome: "magnata", cor: 0xFFD700 },
-  { wins: 10, nome: "01 da sensi", cor: 0x00FFFF },
-  { wins: 15, nome: "muita bala", cor: 0xFF0000 },
-  { wins: 20, nome: "iluminado", cor: 0xFFFFFF },
-  { wins: 30, nome: "rare talent", cor: 0x800080 },
-  { wins: 50, nome: "try hard", cor: 0xFF4500 }
-];
-
-client.once("ready", () => {
+// ===== BOT ONLINE =====
+client.once("clientReady", () => {
   console.log(`Bot online como ${client.user.tag}`);
 });
 
+// ===== COMANDO PAINEL =====
 client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+
   if (message.content === "!painel") {
 
     const embed = new EmbedBuilder()
-      .setTitle("CASA DO DV - PAINEL DE DUELO")
-      .setDescription("Escolha o modo do duelo abaixo")
-      .setImage(BANNER_URL)
+      .setTitle("⚔️ Sistema de Duelo")
+      .setDescription("Clique para iniciar um duelo!")
+      .setImage("COLE_AQUI_O_LINK_DO_SEU_BANNER")
       .setColor("Red");
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId("1v1")
-        .setLabel("1v1")
-        .setStyle(ButtonStyle.Primary),
-
-      new ButtonBuilder()
-        .setCustomId("2v2")
-        .setLabel("2v2")
-        .setStyle(ButtonStyle.Success),
-
-      new ButtonBuilder()
-        .setCustomId("4v4")
-        .setLabel("4v4")
+        .setCustomId("iniciar_duelo")
+        .setLabel("Iniciar Duelo")
         .setStyle(ButtonStyle.Danger)
     );
 
-    message.channel.send({ embeds: [embed], components: [row] });
+    await message.channel.send({
+      embeds: [embed],
+      components: [row]
+    });
   }
 });
 
+// ===== BOTÕES =====
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isButton()) return;
 
-  const modo = interaction.customId;
+  // INICIAR DUELO
+  if (interaction.customId === "iniciar_duelo") {
 
-  duelos[interaction.user.id] = {
-    modo,
-    tempo: Date.now()
-  };
+    duelos[interaction.user.id] = true;
 
-  await interaction.reply({
-    content: `Duelo ${modo} iniciado! Você tem 2 minutos para confirmar.`,
-    ephemeral: true
-  });
-});
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("vitoria")
+        .setLabel("Confirmar Vitória")
+        .setStyle(ButtonStyle.Success)
+    );
 
-client.on("messageCreate", async (message) => {
-  if (message.content === "!confirmar") {
+    await interaction.reply({
+      content: "Duelo iniciado! Clique abaixo quando vencer.",
+      components: [row]
+    });
+  }
 
-    const duelo = duelos[message.author.id];
+  // CONFIRMAR VITÓRIA
+  if (interaction.customId === "vitoria") {
 
-    if (!duelo)
-      return message.reply("Você não tem duelo pendente.");
-
-    if (Date.now() - duelo.tempo > 120000) {
-      delete duelos[message.author.id];
-      return message.reply("Tempo expirado.");
+    if (!duelos[interaction.user.id]) {
+      return interaction.reply({
+        content: "Você não iniciou um duelo!",
+        ephemeral: true
+      });
     }
 
-    let data = JSON.parse(fs.readFileSync("./wins.json"));
-
-    if (!data[message.author.id]) {
-      data[message.author.id] = {
-        wins: 0,
-        mes: new Date().getMonth()
-      };
+    // adiciona win
+    if (!wins[interaction.user.id]) {
+      wins[interaction.user.id] = 0;
     }
 
-    if (data[message.author.id].mes !== new Date().getMonth()) {
-      data[message.author.id].wins = 0;
-      data[message.author.id].mes = new Date().getMonth();
-    }
+    wins[interaction.user.id] += 1;
 
-    data[message.author.id].wins += 1;
-    fs.writeFileSync("./wins.json", JSON.stringify(data, null, 2));
+    delete duelos[interaction.user.id];
 
-    const wins = data[message.author.id].wins;
-
-    const member = await message.guild.members.fetch(message.author.id);
-
-    for (const cargo of cargosWins) {
-      if (wins >= cargo.wins) {
-
-        let role = message.guild.roles.cache.find(r => r.name === cargo.nome);
-
-        if (!role) {
-          role = await message.guild.roles.create({
-            name: cargo.nome,
-            color: cargo.cor
-          });
-        }
-
-        if (!member.roles.cache.has(role.id)) {
-          await member.roles.add(role);
-        }
-      }
-    }
-
-    delete duelos[message.author.id];
-
-    message.reply(`Vitória confirmada! Agora você tem ${wins} wins.`);
+    await interaction.reply({
+      content: `🏆 Vitória confirmada!\nTotal de wins: ${wins[interaction.user.id]}`
+    });
   }
 });
 
-
-"dependencies": {
-  "discord.js": "^14.14.1",
-  "express": "^4.18.2"
-}
-
-app.get("/", (req, res) => {
-  res.send("Bot online");
-});
-
-
-  console.log("Servidor web ativo");
-});
-
 client.login(process.env.TOKEN);
-
-
