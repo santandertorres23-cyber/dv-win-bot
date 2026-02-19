@@ -1,4 +1,11 @@
-const { Client, GatewayIntentBits, ApplicationCommandOptionType } = require("discord.js");
+const { 
+  Client, 
+  GatewayIntentBits, 
+  ApplicationCommandOptionType,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require("discord.js");
 
 const client = new Client({
   intents: [
@@ -7,18 +14,19 @@ const client = new Client({
   ],
 });
 
-const wins = {}; // banco simples na memória
+const wins = {};
+const duelos = {};
 
 client.once("ready", async () => {
   console.log(`Logado como ${client.user.tag}`);
 
   await client.application.commands.create({
-    name: "win",
-    description: "Dar uma vitória para alguém",
+    name: "duelo",
+    description: "Desafiar alguém",
     options: [
       {
         name: "usuario",
-        description: "Selecione o usuário",
+        description: "Quem perdeu?",
         type: ApplicationCommandOptionType.User,
         required: true,
       },
@@ -27,38 +35,72 @@ client.once("ready", async () => {
 
   await client.application.commands.create({
     name: "rank",
-    description: "Ver ranking de vitórias",
+    description: "Ver ranking",
   });
 
   console.log("Comandos registrados!");
 });
 
 client.on("interactionCreate", async interaction => {
-  if (!interaction.isChatInputCommand()) return;
+  if (interaction.isChatInputCommand()) {
 
-  if (interaction.commandName === "win") {
-    const user = interaction.options.getUser("usuario");
+    if (interaction.commandName === "duelo") {
+      const alvo = interaction.options.getUser("usuario");
 
-    if (!wins[user.id]) {
-      wins[user.id] = 0;
+      if (alvo.id === interaction.user.id) {
+        return interaction.reply("Você não pode duelar contra si mesmo.");
+      }
+
+      duelos[alvo.id] = interaction.user.id;
+
+      const botao = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("confirmar")
+          .setLabel("Confirmar derrota")
+          .setStyle(ButtonStyle.Success)
+      );
+
+      await interaction.reply({
+        content: `${alvo}, você confirma que perdeu para ${interaction.user}?`,
+        components: [botao]
+      });
     }
 
-    wins[user.id] += 1;
+    if (interaction.commandName === "rank") {
+      if (Object.keys(wins).length === 0) {
+        return interaction.reply("Ninguém tem vitórias ainda.");
+      }
 
-    await interaction.reply(`${user} agora tem ${wins[user.id]} vitória(s)! 🏆`);
+      const ranking = Object.entries(wins)
+        .sort((a, b) => b[1] - a[1])
+        .map((user, index) => `${index + 1}º - <@${user[0]}>: ${user[1]} vitória(s)`)
+        .join("\n");
+
+      await interaction.reply(`🏆 **Ranking:**\n${ranking}`);
+    }
   }
 
-  if (interaction.commandName === "rank") {
-    if (Object.keys(wins).length === 0) {
-      return interaction.reply("Ninguém tem vitórias ainda.");
+  if (interaction.isButton()) {
+    if (interaction.customId === "confirmar") {
+
+      const vencedorId = duelos[interaction.user.id];
+
+      if (!vencedorId) {
+        return interaction.reply({ content: "Nenhum duelo pendente.", ephemeral: true });
+      }
+
+      if (!wins[vencedorId]) {
+        wins[vencedorId] = 0;
+      }
+
+      wins[vencedorId] += 1;
+      delete duelos[interaction.user.id];
+
+      await interaction.update({
+        content: `🏆 <@${vencedorId}> ganhou a vitória!`,
+        components: []
+      });
     }
-
-    const ranking = Object.entries(wins)
-      .sort((a, b) => b[1] - a[1])
-      .map((user, index) => `${index + 1}º - <@${user[0]}>: ${user[1]} vitória(s)`)
-      .join("\n");
-
-    await interaction.reply(`🏆 **Ranking:**\n${ranking}`);
   }
 });
 
