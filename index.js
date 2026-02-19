@@ -9,13 +9,17 @@ const {
 
 const express = require("express");
 
-// ===== EXPRESS (Railway) =====
+// ===== EXPRESS (OBRIGATÓRIO PARA RAILWAY) =====
 const app = express();
+
 app.get("/", (req, res) => {
   res.send("Bot online");
 });
-app.listen(process.env.PORT || 3000, () => {
-  console.log("Servidor web ativo");
+
+const PORT = process.env.PORT;
+
+app.listen(PORT, () => {
+  console.log("Servidor web ativo na porta " + PORT);
 });
 
 // ===== DISCORD CLIENT =====
@@ -32,7 +36,7 @@ const duelos = {};
 const wins = {};
 
 // ===== BOT ONLINE =====
-client.once("clientReady", () => {
+client.once("ready", () => {
   console.log(`Bot online como ${client.user.tag}`);
 });
 
@@ -94,7 +98,6 @@ client.on("interactionCreate", async (interaction) => {
       });
     }
 
-    // adiciona win
     if (!wins[interaction.user.id]) {
       wins[interaction.user.id] = 0;
     }
